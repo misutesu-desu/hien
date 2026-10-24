@@ -11,6 +11,9 @@ eframe = { version = "0.37", default-features = false, features = ["clipboard", 
 serde = { version = "1.0.229", features = ["derive"] }
 sys-locale = "0.3.2"
 
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_UI_WindowsAndMessaging"] }
+
 [profile.release]
 lto = true
 codegen-units = 1

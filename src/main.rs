@@ -1,12 +1,13 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod i18n;
+mod instance;
 mod store;
 mod text;
 mod theme;
 
 use std::ops::Range;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 use eframe::egui::{
@@ -147,6 +148,8 @@ struct App {
     focus_editor: bool,
     focus_list: bool,
     window_title: String,
+    inbox: Option<instance::Inbox>,
+    next_file_id: u64,
 }
 
 impl App {
@@ -155,6 +158,7 @@ impl App {
         storage: Option<&dyn eframe::Storage>,
         store: std::io::Result<Store>,
         file: Option<PathBuf>,
+        inbox: Option<instance::Inbox>,
     ) -> Self {
         theme::install(ctx);
         let settings: Settings = storage
@@ -177,33 +181,15 @@ impl App {
                 (None, Vec::new())
             }
         };
-        // Outside files get small ids. Note ids are millisecond timestamps, so the two never meet.
-        let opened = file.and_then(|path| match store::open_file(&path, 1) {
-            Ok(note) => Some(note),
-            Err(e) => {
-                let name = path
-                    .file_name()
-                    .unwrap_or(path.as_os_str())
-                    .to_string_lossy();
-                message = Message::error((t.err_open_file)(&format!("{name}: {e}")));
-                None
-            }
-        });
-        let opened_file = opened.is_some();
-        notes.splice(0..0, opened);
         if notes.is_empty() {
             notes.push(Note::new(store.as_ref().map_or(0, Store::new_id)));
         }
-        let selected = if opened_file {
-            0
-        } else {
-            settings
-                .last_note
-                .and_then(|id| notes.iter().position(|n| n.id == id))
-                .unwrap_or(0)
-        };
+        let selected = settings
+            .last_note
+            .and_then(|id| notes.iter().position(|n| n.id == id))
+            .unwrap_or(0);
 
-        Self {
+        let mut app = Self {
             store,
             notes,
             selected,
@@ -229,7 +215,50 @@ impl App {
             focus_editor: true,
             focus_list: false,
             window_title: "Hien".into(),
+            inbox,
+            next_file_id: 0,
+        };
+        if let Some(path) = file {
+            app.open_file(&path);
         }
+        app
+    }
+
+    fn open_file(&mut self, path: &Path) {
+        let open = self
+            .notes
+            .iter()
+            .position(|n| n.file.as_ref().is_some_and(|f| f.path == path));
+        if let Some(i) = open {
+            return self.select(i);
+        }
+        // Outside files get small ids. Note ids are millisecond timestamps, so the two never meet.
+        self.next_file_id += 1;
+        let note = match store::open_file(path, self.next_file_id) {
+            Ok(note) => note,
+            Err(e) => {
+                let name = path
+                    .file_name()
+                    .unwrap_or(path.as_os_str())
+                    .to_string_lossy();
+                self.message = Message::error((self.t().err_open_file)(&format!("{name}: {e}")));
+                return;
+            }
+        };
+        self.save_notes();
+        // A fresh start has one blank note. It is pointless next to the opened file.
+        if self.notes.len() == 1 && self.note().file.is_none() && self.note().text.trim().is_empty()
+        {
+            let blank = self.notes.remove(0);
+            if let Some(s) = &self.store {
+                let _ = s.trash(blank.id);
+            }
+        }
+        self.notes.insert(0, note);
+        self.selected = 0;
+        self.panel.current = 0;
+        self.message = None;
+        self.focus_editor = true;
     }
 
     fn t(&self) -> &'static Strings {
@@ -923,6 +952,16 @@ impl App {
 
 impl App {
     fn tick(&mut self, ctx: &egui::Context) {
+        if let Some(inbox) = self.inbox.clone() {
+            let requests = std::mem::take(&mut *inbox.lock().unwrap());
+            if !requests.is_empty() {
+                for path in requests.into_iter().flatten() {
+                    self.open_file(&path);
+                }
+                ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+                ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+            }
+        }
         self.shortcuts(ctx);
         if self.notes.iter().any(|n| n.dirty) {
             let elapsed = self.last_edit.elapsed();
@@ -1088,6 +1127,9 @@ fn main() -> eframe::Result {
         ..Default::default()
     };
     let file = std::env::args_os().nth(1).map(PathBuf::from);
+    if instance::send(file.as_deref()) {
+        return Ok(());
+    }
     eframe::run_native(
         "Hien",
         options,
@@ -1097,6 +1139,7 @@ fn main() -> eframe::Result {
                 cc.storage,
                 Store::open(),
                 file,
+                instance::listen(cc.egui_ctx.clone()),
             )))
         }),
     )
@@ -1139,7 +1182,7 @@ mod tests {
         };
         store.save(&note).unwrap();
         let ctx = egui::Context::default();
-        let app = App::new(&ctx, None, Ok(store), None);
+        let app = App::new(&ctx, None, Ok(store), None, None);
         let id = app.editor_id();
         (ctx, app, id)
     }

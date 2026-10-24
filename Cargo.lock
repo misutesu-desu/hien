@@ -991,6 +991,7 @@ dependencies = [
  "eframe",
  "serde",
  "sys-locale",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
