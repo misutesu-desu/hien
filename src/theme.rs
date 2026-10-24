@@ -31,10 +31,10 @@ pub struct Pal {
     pub accent_text: Color32,
     pub on_accent: Color32,
     pub error_text: Color32,
-    pub eslesme: Color32,
+    pub highlight: Color32,
 }
 
-pub const KOYU: Pal = Pal {
+pub const DARK: Pal = Pal {
     content: hex(0x191919),
     status: hex(0x1C1C1C),
     panel: hex(0x202020),
@@ -55,10 +55,10 @@ pub const KOYU: Pal = Pal {
     accent_text: hex(0x60CDFF),
     on_accent: hex(0x000000),
     error_text: hex(0xFF99A4),
-    eslesme: hex(0x0B3A5C),
+    highlight: hex(0x0B3A5C),
 };
 
-pub const ACIK: Pal = Pal {
+pub const LIGHT: Pal = Pal {
     content: hex(0xFFFFFF),
     status: hex(0xFFFFFF),
     panel: hex(0xF3F3F3),
@@ -79,50 +79,48 @@ pub const ACIK: Pal = Pal {
     accent_text: hex(0x005FB8),
     on_accent: hex(0xFFFFFF),
     error_text: hex(0xC42B1C),
-    eslesme: hex(0xCCE8FF),
+    highlight: hex(0xCCE8FF),
 };
 
 pub fn pal(ctx: &egui::Context) -> &'static Pal {
     match ctx.theme() {
-        Theme::Dark => &KOYU,
-        Theme::Light => &ACIK,
+        Theme::Dark => &DARK,
+        Theme::Light => &LIGHT,
     }
 }
 
-pub fn kur(ctx: &egui::Context) {
-    yazi_tipleri(ctx);
-    ctx.style_mut_of(Theme::Dark, |s| stil(s, &KOYU));
-    ctx.style_mut_of(Theme::Light, |s| stil(s, &ACIK));
+pub fn install(ctx: &egui::Context) {
+    fonts(ctx);
+    ctx.style_mut_of(Theme::Dark, |s| style(s, &DARK));
+    ctx.style_mut_of(Theme::Light, |s| style(s, &LIGHT));
 }
 
-// Segoe UI varsa onu kullan, yoksa egui'nin gömülü yazı tipleri kalır.
-fn yazi_tipleri(ctx: &egui::Context) {
-    let mut tanim = FontDefinitions::default();
-    let klasor = std::env::var_os("WINDIR").map(|w| std::path::PathBuf::from(w).join("Fonts"));
-    let mut ekle = |ad: &str, dosyalar: &[&str], aile: FontFamily| {
-        let Some(k) = &klasor else { return };
-        let Some(veri) = dosyalar.iter().find_map(|d| std::fs::read(k.join(d)).ok()) else {
+// Use Segoe UI when present, otherwise egui keeps its bundled fonts.
+fn fonts(ctx: &egui::Context) {
+    let mut defs = FontDefinitions::default();
+    let dir = std::env::var_os("WINDIR").map(|w| std::path::PathBuf::from(w).join("Fonts"));
+    let mut add = |name: &str, files: &[&str], family: FontFamily| {
+        let Some(k) = &dir else { return };
+        let Some(data) = files.iter().find_map(|d| std::fs::read(k.join(d)).ok()) else {
             return;
         };
-        tanim
-            .font_data
-            .insert(ad.to_owned(), Arc::new(FontData::from_owned(veri)));
-        tanim
-            .families
-            .entry(aile)
+        defs.font_data
+            .insert(name.to_owned(), Arc::new(FontData::from_owned(data)));
+        defs.families
+            .entry(family)
             .or_default()
-            .insert(0, ad.to_owned());
+            .insert(0, name.to_owned());
     };
-    ekle("segoe", &["segoeui.ttf"], FontFamily::Proportional);
-    ekle(
+    add("segoe", &["segoeui.ttf"], FontFamily::Proportional);
+    add(
         "mono",
         &["CascadiaMono.ttf", "consola.ttf"],
         FontFamily::Monospace,
     );
-    ctx.set_fonts(tanim);
+    ctx.set_fonts(defs);
 }
 
-fn stil(s: &mut egui::Style, p: &Pal) {
+fn style(s: &mut egui::Style, p: &Pal) {
     s.text_styles = [
         (TextStyle::Small, FontId::proportional(12.0)),
         (TextStyle::Body, FontId::proportional(14.0)),
@@ -180,13 +178,13 @@ fn stil(s: &mut egui::Style, p: &Pal) {
     w.active.fg_stroke = Stroke::new(1.0, p.text);
     w.active.expansion = 0.0;
     w.open = w.active;
-    for durum in [
+    for state in [
         &mut w.noninteractive,
         &mut w.inactive,
         &mut w.hovered,
         &mut w.active,
         &mut w.open,
     ] {
-        durum.corner_radius = CornerRadius::same(5);
+        state.corner_radius = CornerRadius::same(5);
     }
 }
