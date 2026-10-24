@@ -2,5 +2,6 @@
 
 mod depo;
 mod metin;
+mod tema;
 
 fn main() {}
