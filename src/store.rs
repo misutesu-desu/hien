@@ -32,7 +32,11 @@ fn decode(bytes: Vec<u8>) -> io::Result<(String, bool, bool)> {
 }
 
 fn encode(text: &str, bom: bool, crlf: bool) -> String {
-    let body = if crlf { text.replace('\n', "\r\n") } else { text.to_owned() };
+    let body = if crlf {
+        text.replace('\n', "\r\n")
+    } else {
+        text.to_owned()
+    };
     if bom { format!("{BOM}{body}") } else { body }
 }
 
@@ -44,8 +48,16 @@ fn write_atomic(path: &Path, tmp: &Path, contents: &str) -> io::Result<()> {
 
 pub fn open_file(path: &Path, id: u64) -> io::Result<Note> {
     let (text, bom, crlf) = decode(fs::read(path)?)?;
-    let file = File { path: path.to_owned(), bom, crlf };
-    Ok(Note { text, file: Some(file), ..Note::new(id) })
+    let file = File {
+        path: path.to_owned(),
+        bom,
+        crlf,
+    };
+    Ok(Note {
+        text,
+        file: Some(file),
+        ..Note::new(id)
+    })
 }
 
 pub fn save_file(note: &Note, file: &File) -> io::Result<()> {
@@ -98,6 +110,10 @@ impl Store {
                 fs::rename(dir.join("cop"), dir.join("trash"))?;
             }
         }
+        Self::at(dir)
+    }
+
+    pub fn at(dir: PathBuf) -> io::Result<Self> {
         fs::create_dir_all(dir.join("trash"))?;
         Ok(Self { dir })
     }

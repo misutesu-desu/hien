@@ -150,17 +150,21 @@ struct App {
 }
 
 impl App {
-    fn new(cc: &eframe::CreationContext<'_>, file: Option<PathBuf>) -> Self {
-        theme::install(&cc.egui_ctx);
-        let settings: Settings = cc
-            .storage
+    fn new(
+        ctx: &egui::Context,
+        storage: Option<&dyn eframe::Storage>,
+        store: std::io::Result<Store>,
+        file: Option<PathBuf>,
+    ) -> Self {
+        theme::install(ctx);
+        let settings: Settings = storage
             .and_then(|s| eframe::get_value(s, eframe::APP_KEY))
             .unwrap_or_default();
-        cc.egui_ctx.set_theme(settings.theme.preference());
+        ctx.set_theme(settings.theme.preference());
         let t = settings.lang.strings();
 
         let mut message = None;
-        let (store, mut notes) = match Store::open() {
+        let (store, mut notes) = match store {
             Ok(s) => match s.load() {
                 Ok(n) => (Some(s), n),
                 Err(e) => {
@@ -917,8 +921,8 @@ impl App {
     }
 }
 
-impl eframe::App for App {
-    fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+impl App {
+    fn tick(&mut self, ctx: &egui::Context) {
         self.shortcuts(ctx);
         if self.notes.iter().any(|n| n.dirty) {
             let elapsed = self.last_edit.elapsed();
@@ -930,7 +934,7 @@ impl eframe::App for App {
         }
     }
 
-    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+    fn draw(&mut self, ui: &mut egui::Ui) {
         let p = *theme::pal(ui.ctx());
         let title = match self.note().title() {
             Some(name) if self.note().file.is_some() => format!("{name} - Hien"),
@@ -979,6 +983,16 @@ impl eframe::App for App {
                 }
                 self.editor(ui, &p);
             });
+    }
+}
+
+impl eframe::App for App {
+    fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        self.tick(ctx);
+    }
+
+    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        self.draw(ui);
     }
 
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
@@ -1077,6 +1091,85 @@ fn main() -> eframe::Result {
     eframe::run_native(
         "Hien",
         options,
-        Box::new(|cc| Ok(Box::new(App::new(cc, file)))),
+        Box::new(|cc| {
+            Ok(Box::new(App::new(
+                &cc.egui_ctx,
+                cc.storage,
+                Store::open(),
+                file,
+            )))
+        }),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn frame(ctx: &egui::Context, app: &mut App, events: Vec<egui::Event>) {
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                vec2(1000.0, 700.0),
+            )),
+            events,
+            ..Default::default()
+        };
+        let mut out = ctx.run_ui(input, |ui| {
+            app.tick(ui.ctx());
+            app.draw(ui);
+        });
+        out.textures_delta.clear();
+    }
+
+    fn app_with_long_note(name: &str) -> (egui::Context, App, Id) {
+        let dir = std::env::temp_dir().join(format!("hien-test-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let store = Store::at(dir).unwrap();
+        let note = Note {
+            text: (1..=400)
+                .map(|i| {
+                    format!(
+                        "line {i}
+"
+                    )
+                })
+                .collect(),
+            ..Note::new(7)
+        };
+        store.save(&note).unwrap();
+        let ctx = egui::Context::default();
+        let app = App::new(&ctx, None, Ok(store), None);
+        let id = app.editor_id();
+        (ctx, app, id)
+    }
+
+    fn editor_top(ctx: &egui::Context, id: Id) -> f32 {
+        ctx.read_response(id).unwrap().rect.top()
+    }
+
+    #[test]
+    fn mouse_wheel_scrolls_the_editor() {
+        let (ctx, mut app, id) = app_with_long_note("wheel");
+        let over_editor = egui::Event::PointerMoved(pos2(600.0, 400.0));
+        frame(&ctx, &mut app, vec![over_editor.clone()]);
+        frame(&ctx, &mut app, vec![]);
+        let before = editor_top(&ctx, id);
+        let wheel = egui::Event::MouseWheel {
+            unit: egui::MouseWheelUnit::Line,
+            delta: vec2(0.0, -5.0),
+            phase: egui::TouchPhase::Move,
+            modifiers: Modifiers::NONE,
+            source: egui::MouseWheelSource::Wheel,
+        };
+        frame(&ctx, &mut app, vec![over_editor, wheel]);
+        for _ in 0..5 {
+            frame(&ctx, &mut app, vec![]);
+        }
+        assert!(
+            editor_top(&ctx, id) < before - 50.0,
+            "{before} -> {}",
+            editor_top(&ctx, id)
+        );
+    }
 }
