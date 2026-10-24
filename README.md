@@ -1,37 +1,40 @@
 # Hien
 
-Rust ve egui ile yazılmış, hızlı açılan bir not defteri. Notlar `%APPDATA%\Hien\notlar` klasöründe düz `.txt` dosyaları olarak durur, yazmayı bıraktıktan 400 ms sonra kendiliğinden kaydedilir.
+A fast notepad for Windows, written in Rust with egui. Notes are plain `.txt` files in `%APPDATA%\Hien\notes` and save on their own 400 ms after you stop typing.
 
-## Özellikler
+[Download](https://github.com/misutesu-desu/hien/releases/latest) · [Website](https://misutesu-desu.github.io/hien/) · [Türkçe](README.tr.md)
 
-- Notlar arasında anında arama, ilk satır notun adı olur.
-- Bul ve değiştir: tek tek ya da hepsini birden. Büyük küçük harf ve tam kelime seçenekleri var, Türkçe I/ı ve İ/i aramada eşleşir.
-- Kelime ekleme: aranan kelimenin önüne ya da arkasına başka bir kelime yazar. Örneğin `kedi` için `tekir` seçilirse her `kedi`, `tekir kedi` olur. Kelime zaten oradaysa tekrar eklenmez, araya boşluk konup konmayacağı seçilebilir.
-- Toplu işlemler tek düğmeyle geri alınır.
-- Silinen not `cop` klasörüne taşınır, durum çubuğundan geri getirilebilir.
-- Koyu, açık ve sistem teması.
+## Features
 
-## Kısayollar
+- Instant search across notes. The first line of a note is its name.
+- Find and replace, one at a time or all at once, with match case and whole word options.
+- Insert word: puts another word before or after every match. With `cat` and `tabby`, every `cat` becomes `tabby cat`. A match that already has the word is skipped, and the space between the two is optional.
+- Bulk changes undo with one button.
+- Deleted notes go to a `trash` folder and can be restored from the status bar.
+- English and Turkish interface, picked from the system language and changeable in Settings.
+- Dark, light and system theme.
 
-| Tuş | İş |
+## Shortcuts
+
+| Key | Action |
 |---|---|
-| Ctrl+N | Yeni not |
-| Ctrl+F | Bul |
-| Ctrl+H | Değiştir |
-| Ctrl+E | Kelime ekle |
-| F3, Shift+F3 | Sonraki, önceki eşleşme |
-| Enter | Panelde o satırın işlemini yapar |
-| Ctrl+K | Notlarda ara |
-| Alt+Yukarı, Alt+Aşağı | Önceki, sonraki not |
-| Ctrl+S | Hemen kaydet |
-| Esc | Paneli kapat |
+| Ctrl+N | New note |
+| Ctrl+F | Find |
+| Ctrl+H | Replace |
+| Ctrl+E | Insert word |
+| F3, Shift+F3 | Next, previous match |
+| Enter | Runs the action of the focused panel row |
+| Ctrl+K | Search notes |
+| Alt+Up, Alt+Down | Previous, next note |
+| Ctrl+S | Save now |
+| Esc | Close the panel |
 
-Bul paneli açılırken editörde seçili metin varsa arama kutusuna gelir.
+Text selected in the editor fills the find box when the panel opens.
 
-## Derleme
+## Building
 
 ```bash
 cargo build --release
 ```
 
-Çıktı `target/release/hien.exe`. Testler için `cargo test`.
+The binary is `target/release/hien.exe`. Run the tests with `cargo test`.
