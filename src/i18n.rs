@@ -35,6 +35,7 @@ pub struct Strings {
     pub untitled: &'static str,
     pub delete: &'static str,
     pub delete_hint: &'static str,
+    pub close_file: &'static str,
     pub find: &'static str,
     pub replace: &'static str,
     pub insert_word: &'static str,
@@ -83,6 +84,7 @@ pub struct Strings {
     pub err_delete: fn(&str) -> String,
     pub err_restore: fn(&str) -> String,
     pub err_open_folder: fn(&str) -> String,
+    pub err_open_file: fn(&str) -> String,
 }
 
 fn plural(n: usize, one: &str, many: &str) -> String {
@@ -103,6 +105,7 @@ pub const EN: Strings = Strings {
     untitled: "Untitled note",
     delete: "Delete",
     delete_hint: "Moves the note to the trash folder",
+    close_file: "Close file",
     find: "Find",
     replace: "Replace",
     insert_word: "Insert word",
@@ -156,6 +159,7 @@ pub const EN: Strings = Strings {
     err_delete: |e| format!("Could not delete: {e}"),
     err_restore: |e| format!("Could not restore: {e}"),
     err_open_folder: |e| format!("Could not open the folder: {e}"),
+    err_open_file: |e| format!("Could not open {e}"),
 };
 
 pub const TR: Strings = Strings {
@@ -172,6 +176,7 @@ pub const TR: Strings = Strings {
     untitled: "Adsız not",
     delete: "Sil",
     delete_hint: "Not çöp klasörüne taşınır",
+    close_file: "Dosyayı kapat",
     find: "Bul",
     replace: "Değiştir",
     insert_word: "Kelime ekle",
@@ -220,4 +225,5 @@ pub const TR: Strings = Strings {
     err_delete: |e| format!("Silinemedi: {e}"),
     err_restore: |e| format!("Geri getirilemedi: {e}"),
     err_open_folder: |e| format!("Klasör açılamadı: {e}"),
+    err_open_file: |e| format!("Açılamadı, {e}"),
 };

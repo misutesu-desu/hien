@@ -6,6 +6,7 @@ mod text;
 mod theme;
 
 use std::ops::Range;
+use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 use eframe::egui::{
@@ -145,10 +146,11 @@ struct App {
     scroll_to_cursor: bool,
     focus_editor: bool,
     focus_list: bool,
+    window_title: String,
 }
 
 impl App {
-    fn new(cc: &eframe::CreationContext<'_>) -> Self {
+    fn new(cc: &eframe::CreationContext<'_>, file: Option<PathBuf>) -> Self {
         theme::install(&cc.egui_ctx);
         let settings: Settings = cc
             .storage
@@ -171,13 +173,31 @@ impl App {
                 (None, Vec::new())
             }
         };
+        // Outside files get small ids. Note ids are millisecond timestamps, so the two never meet.
+        let opened = file.and_then(|path| match store::open_file(&path, 1) {
+            Ok(note) => Some(note),
+            Err(e) => {
+                let name = path
+                    .file_name()
+                    .unwrap_or(path.as_os_str())
+                    .to_string_lossy();
+                message = Message::error((t.err_open_file)(&format!("{name}: {e}")));
+                None
+            }
+        });
+        let opened_file = opened.is_some();
+        notes.splice(0..0, opened);
         if notes.is_empty() {
             notes.push(Note::new(store.as_ref().map_or(0, Store::new_id)));
         }
-        let selected = settings
-            .last_note
-            .and_then(|id| notes.iter().position(|n| n.id == id))
-            .unwrap_or(0);
+        let selected = if opened_file {
+            0
+        } else {
+            settings
+                .last_note
+                .and_then(|id| notes.iter().position(|n| n.id == id))
+                .unwrap_or(0)
+        };
 
         Self {
             store,
@@ -204,6 +224,7 @@ impl App {
             scroll_to_cursor: false,
             focus_editor: true,
             focus_list: false,
+            window_title: "Hien".into(),
         }
     }
 
@@ -227,9 +248,13 @@ impl App {
     }
 
     fn save_notes(&mut self) {
-        let Some(store) = &self.store else { return };
         for note in self.notes.iter_mut().filter(|n| n.dirty) {
-            match store.save(note) {
+            let result = match (&note.file, &self.store) {
+                (Some(f), _) => store::save_file(note, f),
+                (None, Some(s)) => s.save(note),
+                (None, None) => continue,
+            };
+            match result {
                 Ok(()) => note.dirty = false,
                 Err(e) => {
                     self.message =
@@ -247,7 +272,8 @@ impl App {
         }
         self.save_notes();
         let mut target = index;
-        if self.notes.len() > 1 && self.note().text.trim().is_empty() {
+        if self.notes.len() > 1 && self.note().file.is_none() && self.note().text.trim().is_empty()
+        {
             let empty = self.notes.remove(self.selected);
             if let Some(s) = &self.store {
                 let _ = s.trash(empty.id);
@@ -263,7 +289,7 @@ impl App {
     }
 
     fn new_note(&mut self) {
-        if self.note().text.trim().is_empty() {
+        if self.note().file.is_none() && self.note().text.trim().is_empty() {
             self.focus_editor = true;
             return;
         }
@@ -277,6 +303,9 @@ impl App {
     }
 
     fn delete(&mut self) {
+        if self.note().file.is_some() {
+            return self.close_file();
+        }
         let note = self.notes.remove(self.selected);
         if let Some(s) = &self.store
             && let Err(e) = s.trash(note.id)
@@ -292,6 +321,22 @@ impl App {
         self.selected = self.selected.min(self.notes.len() - 1);
         self.message = Message::info(self.t().moved_to_trash);
         self.deleted = Some(note);
+    }
+
+    /// Takes an outside file off the list. The file itself stays where it is.
+    fn close_file(&mut self) {
+        self.save_notes();
+        if self.note().dirty {
+            return;
+        }
+        self.notes.remove(self.selected);
+        if self.notes.is_empty() {
+            self.notes
+                .push(Note::new(self.store.as_ref().map_or(0, Store::new_id)));
+        }
+        self.selected = self.selected.min(self.notes.len() - 1);
+        self.message = None;
+        self.focus_editor = true;
     }
 
     fn restore(&mut self) {
@@ -566,7 +611,11 @@ impl App {
         ui.horizontal(|ui| {
             ui.set_height(32.0);
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                if ui.button(t.delete).on_hover_text(t.delete_hint).clicked() {
+                let (label, hint) = match &self.note().file {
+                    Some(f) => (t.close_file, f.path.display().to_string()),
+                    None => (t.delete, t.delete_hint.to_owned()),
+                };
+                if ui.button(label).on_hover_text(hint).clicked() {
                     self.delete();
                 }
                 let ctx = ui.ctx().clone();
@@ -883,6 +932,15 @@ impl eframe::App for App {
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let p = *theme::pal(ui.ctx());
+        let title = match self.note().title() {
+            Some(name) if self.note().file.is_some() => format!("{name} - Hien"),
+            _ => "Hien".to_owned(),
+        };
+        if title != self.window_title {
+            ui.ctx()
+                .send_viewport_cmd(egui::ViewportCommand::Title(title.clone()));
+            self.window_title = title;
+        }
 
         egui::Panel::bottom("status")
             .exact_size(23.0)
@@ -1015,5 +1073,10 @@ fn main() -> eframe::Result {
             .with_min_inner_size([620.0, 380.0]),
         ..Default::default()
     };
-    eframe::run_native("Hien", options, Box::new(|cc| Ok(Box::new(App::new(cc)))))
+    let file = std::env::args_os().nth(1).map(PathBuf::from);
+    eframe::run_native(
+        "Hien",
+        options,
+        Box::new(|cc| Ok(Box::new(App::new(cc, file)))),
+    )
 }
