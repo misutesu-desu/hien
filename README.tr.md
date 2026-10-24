@@ -12,7 +12,7 @@ Rust ve egui ile yazılmış, hızlı bir Windows not defteri. Notlar `%APPDATA%
 - Toplu işlemler tek düğmeyle geri alınır.
 - Silinen not `trash` klasörüne taşınır, durum çubuğundan geri getirilebilir.
 - İngilizce ve Türkçe arayüz. Sistem diline göre seçilir, Ayarlar menüsünden değişir.
-- Koyu, açık ve sistem teması.
+- `.txt` dosyalarını açar. Hien `.txt` için varsayılan uygulama yapılırsa çift tıklanan dosya Hien'de açılır. Dosya satır sonları korunarak yerine kaydedilir, Dosyayı kapat ona dokunmadan listeden çıkarır. Dosyalar UTF-8 olmalı.
 
 ## Kısayollar
 

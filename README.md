@@ -13,6 +13,7 @@ A fast notepad for Windows, written in Rust with egui. Notes are plain `.txt` fi
 - Deleted notes go to a `trash` folder and can be restored from the status bar.
 - English and Turkish interface, picked from the system language and changeable in Settings.
 - Dark, light and system theme.
+- Opens `.txt` files. Set Hien as the default app for `.txt` and double-clicking a file opens it in Hien. The file is saved back in place with its line endings, and Close file takes it off the list without touching it. Files must be UTF-8.
 
 ## Shortcuts
 
