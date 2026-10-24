@@ -1,17 +1,30 @@
 #[derive(Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum Lang {
     En,
+    Tr,
 }
 
 impl Lang {
+    /// Turkish when the system language is Turkish, English otherwise.
+    pub fn detect() -> Self {
+        match sys_locale::get_locale() {
+            Some(l) if l.to_lowercase().starts_with("tr") => Self::Tr,
+            _ => Self::En,
+        }
+    }
+
     pub fn strings(self) -> &'static Strings {
         match self {
             Self::En => &EN,
+            Self::Tr => &TR,
         }
     }
 }
 
 pub struct Strings {
+    pub settings: &'static str,
+    pub language: &'static str,
+    pub theme: &'static str,
     pub theme_system: &'static str,
     pub theme_dark: &'static str,
     pub theme_light: &'static str,
@@ -77,9 +90,12 @@ fn plural(n: usize, one: &str, many: &str) -> String {
 }
 
 pub const EN: Strings = Strings {
-    theme_system: "Theme: system",
-    theme_dark: "Theme: dark",
-    theme_light: "Theme: light",
+    settings: "Settings",
+    language: "Language",
+    theme: "Theme",
+    theme_system: "System",
+    theme_dark: "Dark",
+    theme_light: "Light",
     new_note: "New note",
     search_notes: "Search notes  Ctrl+K",
     no_matching_notes: "No matching notes.",
@@ -140,4 +156,68 @@ pub const EN: Strings = Strings {
     err_delete: |e| format!("Could not delete: {e}"),
     err_restore: |e| format!("Could not restore: {e}"),
     err_open_folder: |e| format!("Could not open the folder: {e}"),
+};
+
+pub const TR: Strings = Strings {
+    settings: "Ayarlar",
+    language: "Dil",
+    theme: "Tema",
+    theme_system: "Sistem",
+    theme_dark: "Koyu",
+    theme_light: "Açık",
+    new_note: "Yeni not",
+    search_notes: "Notlarda ara  Ctrl+K",
+    no_matching_notes: "Eşleşen not yok.",
+    open_folder: "Klasörü aç",
+    untitled: "Adsız not",
+    delete: "Sil",
+    delete_hint: "Not çöp klasörüne taşınır",
+    find: "Bul",
+    replace: "Değiştir",
+    insert_word: "Kelime ekle",
+    find_label: "Ara",
+    find_hint: "Aranacak kelime",
+    no_results: "Sonuç yok",
+    previous: "Önceki  Shift+F3",
+    next: "Sonraki  F3",
+    match_case: "Büyük küçük harfe duyarlı",
+    whole_word: "Tam kelime",
+    close: "Kapat  Esc",
+    with_label: "Yeni",
+    with_hint: "Yerine yazılacak",
+    replace_one: "Değiştir",
+    replace_all: "Tümünü değiştir",
+    word_label: "Kelime",
+    word_hint: "Eklenecek kelime",
+    before: "Önüne",
+    after: "Arkasına",
+    space: "Boşluk",
+    space_hint: "Kelimeyle arasına boşluk koy",
+    insert_here: "Buna ekle",
+    insert_all: "Tümüne ekle",
+    preview: "Sonuç:",
+    undo: "Geri al",
+    undo_hint: "Son toplu işlemi geri alır",
+    editor_hint: "Yazmaya başla. İlk satır notun adı olur.",
+    saving: "Kaydediliyor…",
+    saved: "Kaydedildi",
+    saving_off: "Kayıt kapalı",
+    restore: "Geri getir",
+    moved_to_trash: "Not çöp klasörüne taşındı.",
+    undone: "Son işlem geri alındı.",
+    already_there: "Kelime zaten orada, değişiklik yok.",
+    line_col: |l, c| format!("Satır {l}, Sütun {c}"),
+    chars: |n| format!("{n} karakter"),
+    words: |n| format!("{n} kelime"),
+    lines: |n| format!("{n} satır"),
+    replaced_one: |left| format!("1 yer değiştirildi, {left} kaldı."),
+    replaced_all: |n| format!("{n} yer değiştirildi."),
+    inserted: |n| format!("{n} yere eklendi."),
+    inserted_skipped: |n, s| format!("{n} yere eklendi, {s} yerde zaten vardı."),
+    err_read: |e| format!("Notlar okunamadı: {e}"),
+    err_folder: |e| format!("Not klasörü açılamadı: {e}"),
+    err_save: |e| format!("Kaydedilemedi: {e}"),
+    err_delete: |e| format!("Silinemedi: {e}"),
+    err_restore: |e| format!("Geri getirilemedi: {e}"),
+    err_open_folder: |e| format!("Klasör açılamadı: {e}"),
 };

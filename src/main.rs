@@ -30,14 +30,6 @@ enum ThemeChoice {
 }
 
 impl ThemeChoice {
-    fn next(self) -> Self {
-        match self {
-            Self::System => Self::Dark,
-            Self::Dark => Self::Light,
-            Self::Light => Self::System,
-        }
-    }
-
     fn label(self, t: &Strings) -> &'static str {
         match self {
             Self::System => t.theme_system,
@@ -70,7 +62,7 @@ impl Default for Settings {
     fn default() -> Self {
         Self {
             theme: ThemeChoice::System,
-            lang: Lang::En,
+            lang: Lang::detect(),
             last_note: None,
             options: MatchOptions::default(),
             side: Side::Before,
@@ -540,11 +532,22 @@ impl App {
 
         ui.with_layout(Layout::bottom_up(Align::LEFT), |ui| {
             ui.add_space(8.0);
-            ui.horizontal_wrapped(|ui| {
-                if ui.button(self.settings.theme.label(t)).clicked() {
-                    self.settings.theme = self.settings.theme.next();
-                    ui.ctx().set_theme(self.settings.theme.preference());
-                }
+            ui.horizontal(|ui| {
+                ui.menu_button(t.settings, |ui| {
+                    ui.label(egui::RichText::new(t.language).color(p.weak));
+                    ui.radio_value(&mut self.settings.lang, Lang::En, "English");
+                    ui.radio_value(&mut self.settings.lang, Lang::Tr, "Türkçe");
+                    ui.separator();
+                    ui.label(egui::RichText::new(t.theme).color(p.weak));
+                    for choice in [ThemeChoice::System, ThemeChoice::Dark, ThemeChoice::Light] {
+                        if ui
+                            .radio_value(&mut self.settings.theme, choice, choice.label(t))
+                            .changed()
+                        {
+                            ui.ctx().set_theme(choice.preference());
+                        }
+                    }
+                });
                 if let Some(s) = &self.store
                     && ui
                         .button(t.open_folder)
