@@ -581,10 +581,9 @@ impl Uygulama {
         });
     }
 
-    fn baslik_cubugu(&mut self, ui: &mut egui::Ui, p: &Pal) {
+    fn baslik_cubugu(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
             ui.set_height(32.0);
-            ui.colored_label(p.weak, self.not().baslik());
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 if ui
                     .button("Sil")
@@ -954,7 +953,7 @@ impl eframe::App for Uygulama {
                 bottom: 8,
             }))
             .show(ui, |ui| {
-                self.baslik_cubugu(ui, &p);
+                self.baslik_cubugu(ui);
                 if self.panel.acik {
                     self.arama_paneli(ui, &p);
                     ui.add_space(8.0);
