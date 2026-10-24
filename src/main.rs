@@ -23,6 +23,10 @@ use theme::Pal;
 
 const SAVE_DELAY: Duration = Duration::from_millis(400);
 const UNDO_LIMIT: usize = 50;
+/// Pointer distance from the anchor that still counts as standing still.
+const AUTOSCROLL_DEAD_ZONE: f32 = 12.0;
+/// Scroll speed in points per second for each point the pointer is past the dead zone.
+const AUTOSCROLL_SPEED: f32 = 8.0;
 
 #[derive(Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 enum ThemeChoice {
@@ -112,6 +116,13 @@ impl MatchCache {
     }
 }
 
+/// Scrolling by pressing the mouse wheel and moving the pointer, as in browsers.
+struct Autoscroll {
+    anchor: egui::Pos2,
+    started: f64,
+    moved: bool,
+}
+
 struct Message {
     text: String,
     error: bool,
@@ -150,6 +161,9 @@ struct App {
     window_title: String,
     inbox: Option<instance::Inbox>,
     next_file_id: u64,
+    autoscroll: Option<Autoscroll>,
+    editor_area: egui::Rect,
+    scroll_y: f32,
 }
 
 impl App {
@@ -217,6 +231,9 @@ impl App {
             window_title: "Hien".into(),
             inbox,
             next_file_id: 0,
+            autoscroll: None,
+            editor_area: egui::Rect::NOTHING,
+            scroll_y: 0.0,
         };
         if let Some(path) = file {
             app.open_file(&path);
@@ -831,6 +848,7 @@ impl App {
     }
 
     fn editor(&mut self, ui: &mut egui::Ui, p: &Pal) {
+        let target = self.autoscroll_target(ui, p);
         let id = self.editor_id();
         let hint = self.t().editor_hint;
         let highlight = self.panel.open && !self.panel.needle.is_empty();
@@ -875,31 +893,36 @@ impl App {
         };
 
         let note = &mut self.notes[self.selected];
-        let output = egui::ScrollArea::vertical()
+        let mut area = egui::ScrollArea::vertical()
             .id_salt(("scroll", note.id))
-            .auto_shrink(false)
-            .show(ui, |ui| {
-                let output = TextEdit::multiline(&mut note.text)
-                    .id(id)
-                    .frame(Frame::NONE)
-                    .hint_text(hint)
-                    .desired_width(f32::INFINITY)
-                    .min_size(ui.available_size())
-                    .lock_focus(true)
-                    .layouter(&mut layouter)
-                    .show(ui);
-                if std::mem::take(&mut self.scroll_to_cursor)
-                    && let Some(r) = output.cursor_range
-                {
-                    let rect = output
-                        .galley
-                        .pos_from_cursor(r.primary)
-                        .translate(output.galley_pos.to_vec2());
-                    ui.scroll_to_rect(rect.expand(24.0), Some(Align::Center));
-                }
-                output
-            })
-            .inner;
+            .auto_shrink(false);
+        if let Some(y) = target {
+            area = area.vertical_scroll_offset(y);
+        }
+        let scrolled = area.show(ui, |ui| {
+            let output = TextEdit::multiline(&mut note.text)
+                .id(id)
+                .frame(Frame::NONE)
+                .hint_text(hint)
+                .desired_width(f32::INFINITY)
+                .min_size(ui.available_size())
+                .lock_focus(true)
+                .layouter(&mut layouter)
+                .show(ui);
+            if std::mem::take(&mut self.scroll_to_cursor)
+                && let Some(r) = output.cursor_range
+            {
+                let rect = output
+                    .galley
+                    .pos_from_cursor(r.primary)
+                    .translate(output.galley_pos.to_vec2());
+                ui.scroll_to_rect(rect.expand(24.0), Some(Align::Center));
+            }
+            output
+        });
+        self.editor_area = scrolled.inner_rect;
+        self.scroll_y = scrolled.state.clamped_offset().y;
+        let output = scrolled.inner;
 
         if std::mem::take(&mut self.focus_editor) {
             output.response.request_focus();
@@ -910,6 +933,73 @@ impl App {
         if let Some(r) = output.cursor_range {
             self.cursor = text::line_col(&self.notes[self.selected].text, r.primary.index.into());
         }
+    }
+
+    /// Starts, stops and steps autoscroll. Returns the scroll offset to use this frame.
+    fn autoscroll_target(&mut self, ui: &egui::Ui, p: &Pal) -> Option<f32> {
+        use egui::PointerButton::Middle;
+        let (pointer, now, dt, middle_down, middle_up, other_press, esc) = ui.input(|i| {
+            (
+                i.pointer.hover_pos(),
+                i.time,
+                i.stable_dt.min(0.1),
+                i.pointer.button_pressed(Middle),
+                i.pointer.button_released(Middle),
+                i.pointer.any_pressed() && !i.pointer.button_pressed(Middle),
+                i.key_pressed(Key::Escape),
+            )
+        });
+
+        if let Some(a) = &self.autoscroll {
+            // A quick click leaves it running until the next click. Holding the wheel
+            // down scrolls only while it is held.
+            let held = a.moved || now - a.started > 0.3;
+            if other_press || esc || (middle_down && now > a.started) || (middle_up && held) {
+                self.autoscroll = None;
+                return None;
+            }
+        } else if middle_down
+            && let Some(at) = pointer
+            && self.editor_area.contains(at)
+        {
+            self.autoscroll = Some(Autoscroll {
+                anchor: at,
+                started: now,
+                moved: false,
+            });
+        }
+
+        let a = self.autoscroll.as_mut()?;
+        let ctx = ui.ctx();
+        ctx.request_repaint();
+        let marker = ctx.layer_painter(egui::LayerId::new(
+            egui::Order::Foreground,
+            Id::unique("autoscroll"),
+        ));
+        marker.circle(a.anchor, 13.0, p.field, Stroke::new(1.0, p.control_stroke));
+        for dir in [-1.0, 1.0] {
+            let tip = a.anchor + vec2(0.0, 8.0 * dir);
+            let base = a.anchor + vec2(0.0, 3.0 * dir);
+            marker.add(egui::Shape::convex_polygon(
+                vec![tip, base + vec2(-4.0, 0.0), base + vec2(4.0, 0.0)],
+                p.text,
+                Stroke::NONE,
+            ));
+        }
+
+        let dy = pointer.map_or(0.0, |at| at.y - a.anchor.y);
+        let past = dy.abs() - AUTOSCROLL_DEAD_ZONE;
+        if past <= 0.0 {
+            ctx.set_cursor_icon(egui::CursorIcon::AllScroll);
+            return None;
+        }
+        a.moved = true;
+        ctx.set_cursor_icon(if dy < 0.0 {
+            egui::CursorIcon::ResizeNorth
+        } else {
+            egui::CursorIcon::ResizeSouth
+        });
+        Some((self.scroll_y + dy.signum() * past * AUTOSCROLL_SPEED * dt).max(0.0))
     }
 
     fn status_bar(&mut self, ui: &mut egui::Ui, p: &Pal) {
@@ -1214,5 +1304,46 @@ mod tests {
             "{before} -> {}",
             editor_top(&ctx, id)
         );
+    }
+
+    fn middle(pos: egui::Pos2, pressed: bool) -> egui::Event {
+        egui::Event::PointerButton {
+            pos,
+            button: egui::PointerButton::Middle,
+            pressed,
+            modifiers: Modifiers::NONE,
+        }
+    }
+
+    #[test]
+    fn middle_click_autoscrolls_until_next_click() {
+        let (ctx, mut app, id) = app_with_long_note("autoscroll");
+        let anchor = pos2(600.0, 300.0);
+        let below = egui::Event::PointerMoved(pos2(600.0, 500.0));
+        frame(&ctx, &mut app, vec![egui::Event::PointerMoved(anchor)]);
+        frame(&ctx, &mut app, vec![middle(anchor, true)]);
+        frame(&ctx, &mut app, vec![middle(anchor, false)]);
+        let start = editor_top(&ctx, id);
+        frame(&ctx, &mut app, vec![below]);
+        for _ in 0..20 {
+            frame(&ctx, &mut app, vec![]);
+        }
+        let scrolled = editor_top(&ctx, id);
+        assert!(scrolled < start - 100.0, "{start} -> {scrolled}");
+
+        let click = |pressed| egui::Event::PointerButton {
+            pos: pos2(600.0, 500.0),
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: Modifiers::NONE,
+        };
+        frame(&ctx, &mut app, vec![click(true)]);
+        frame(&ctx, &mut app, vec![click(false)]);
+        let stopped = editor_top(&ctx, id);
+        for _ in 0..10 {
+            frame(&ctx, &mut app, vec![]);
+        }
+        assert!(app.autoscroll.is_none());
+        assert_eq!(editor_top(&ctx, id), stopped);
     }
 }
