@@ -1,6 +1,6 @@
 [package]
 name = "hien"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 description = "A fast notepad with find, replace and insert word"
 repository = "https://github.com/misutesu-desu/hien"
