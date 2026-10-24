@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hien</title>
+<meta name="description" content="A fast notepad for Windows with find, replace and insert word.">
+<style>
+:root {
+  color-scheme: dark;
+  --strip: #0a0a0a; --content: #191919; --status: #1c1c1c; --nav: #1f1f1f;
+  --panel: #202020; --field: #2c2c2c; --hover: #2d2d2d; --divider: #303030;
+  --nav-sel: #333333; --line: #3a3a3a; --popup-stroke: #3c3c3c;
+  --sel: #414141; --pressed: #424242; --control-stroke: #8a8a8a;
+  --button: #2d2d2d; --button-stroke: #3a3a3a;
+  --text: #f0f0f0; --weak: #c8c8c8;
+  --accent: #0078d4; --accent-text: #60cdff; --on-accent: #000;
+  --mark: #0b3a5c;
+  --focus: var(--text); --dur: 150ms;
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --strip: #e8e8e8; --content: #fff; --status: #fff; --nav: #f9f9f9;
+  --panel: #f3f3f3; --field: #fff; --hover: #f0f0f0; --divider: #e5e5e5;
+  --nav-sel: #eaeaea; --line: #e5e5e5; --popup-stroke: #d7d7d7;
+  --sel: #cce8ff; --pressed: #dedede;
+  --button: #fbfbfb; --button-stroke: #dedede;
+  --text: #1a1a1a; --weak: #606060;
+  --accent-text: #005fb8; --on-accent: #fff;
+  --mark: #cce8ff;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    color-scheme: light;
+    --strip: #e8e8e8; --content: #fff; --status: #fff; --nav: #f9f9f9;
+    --panel: #f3f3f3; --field: #fff; --hover: #f0f0f0; --divider: #e5e5e5;
+    --nav-sel: #eaeaea; --line: #e5e5e5; --popup-stroke: #d7d7d7;
+    --sel: #cce8ff; --pressed: #dedede;
+    --button: #fbfbfb; --button-stroke: #dedede;
+    --text: #1a1a1a; --weak: #606060;
+    --accent-text: #005fb8; --on-accent: #fff;
+    --mark: #cce8ff;
+  }
+}
+@media (prefers-reduced-motion: reduce) { :root { --dur: 0ms; } }
+
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--content); color: var(--text);
+  font: 14px/1.5 "Segoe UI Variable", "Segoe UI", system-ui, sans-serif; }
+a { color: var(--accent-text); }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+
+header { position: sticky; top: 0; z-index: 1; background: var(--strip);
+  border-bottom: 1px solid var(--divider); }
+.bar { max-width: 960px; margin: 0 auto; padding: 0 16px; height: 48px;
+  display: flex; align-items: center; gap: 6px; }
+.bar .name { font-size: 16px; font-weight: 600; margin-right: auto; }
+button, .button { background: var(--button); color: var(--text); border: 1px solid var(--button-stroke);
+  border-radius: 5px; min-height: 28px; padding: 4px 10px; font: inherit; cursor: pointer;
+  text-decoration: none; display: inline-flex; align-items: center; }
+button:hover, .button:hover { background: var(--hover); }
+button:active, .button:active { background: var(--pressed); }
+.primary { background: var(--accent); color: #fff; border: 0; padding: 8px 16px; min-height: 36px; }
+.primary:hover { background: #106ebe; }
+
+main { max-width: 960px; margin: 0 auto; padding: 0 16px 48px; }
+.hero { padding: 48px 0 32px; }
+h1 { font-size: 32px; line-height: 1.2; margin: 0 0 12px; font-weight: 600; }
+.lead { color: var(--weak); font-size: 16px; max-width: 600px; margin: 0 0 24px; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.small { color: var(--weak); font-size: 12px; }
+
+.window { border: 1px solid var(--popup-stroke); border-radius: 8px; overflow: hidden;
+  box-shadow: 0 8px 16px rgb(0 0 0 / 28%); background: var(--content); margin: 8px 0 48px; }
+.win-body { display: grid; grid-template-columns: 200px 1fr; min-height: 280px; }
+.side { border-right: 1px solid var(--line); padding: 10px 8px; }
+.row { height: 28px; display: flex; align-items: center; padding-left: 12px; border-radius: 5px;
+  color: var(--weak); position: relative; white-space: nowrap; overflow: hidden; }
+.row.on { background: var(--nav-sel); color: var(--text); }
+.row.on::before { content: ""; position: absolute; left: 0; top: 6px; width: 3px; height: 16px;
+  border-radius: 1.5px; background: var(--accent-text); }
+.fake-field { background: var(--field); border-radius: 4px; border-bottom: 1px solid var(--control-stroke);
+  padding: 4px 8px; color: var(--weak); margin-bottom: 8px; min-height: 28px; }
+.edit { padding: 10px 20px 16px; min-width: 0; }
+.find { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; display: flex;
+  flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 12px; }
+.find .fake-field { margin: 0; color: var(--text); min-width: 90px; }
+.chip { border: 1px solid var(--button-stroke); background: var(--button); border-radius: 5px; padding: 2px 8px; }
+.chip.on { background: var(--sel); }
+.chip.go { background: var(--accent); color: #fff; border: 0; }
+.text { font-size: 15px; white-space: pre-wrap; }
+mark { background: var(--mark); color: var(--text); border-radius: 2px; }
+mark.cur { background: var(--accent-text); color: var(--on-accent); }
+.status { background: var(--status); border-top: 1px solid var(--divider); height: 23px;
+  display: flex; justify-content: space-between; padding: 0 12px; font-size: 12px; color: var(--weak);
+  align-items: center; gap: 12px; white-space: nowrap; overflow: hidden; }
+
+h2 { font-size: 20px; font-weight: 600; margin: 0 0 16px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin-bottom: 48px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+.card h3 { font-size: 14px; margin: 0 0 6px; font-weight: 600; }
+.card p { margin: 0; color: var(--weak); }
+table { border-collapse: collapse; width: 100%; max-width: 560px; margin-bottom: 48px; }
+td { border-bottom: 1px solid var(--line); padding: 6px 8px; }
+td:first-child { white-space: nowrap; width: 1%; }
+kbd { font: 13px "Cascadia Mono", Consolas, monospace; background: var(--field); border: 1px solid var(--line);
+  border-radius: 4px; padding: 1px 6px; }
+footer { border-top: 1px solid var(--divider); color: var(--weak); font-size: 12px; }
+footer .bar { height: auto; padding: 16px; }
+
+@media (max-width: 640px) {
+  .win-body { grid-template-columns: 1fr; }
+  .side { display: none; }
+  h1 { font-size: 26px; }
+  .status span:nth-child(n+2) { display: none; }
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <span class="name">Hien</span>
+    <button id="lang" type="button" aria-label="Change language">Türkçe</button>
+    <button id="theme" type="button" data-i18n="theme_system">Theme: system</button>
+  </div>
+</header>
+
+<main>
+  <section class="hero">
+    <h1 data-i18n="title">A notepad that keeps up with you.</h1>
+    <p class="lead" data-i18n="lead">Hien is a small Windows notepad written in Rust. It opens fast, saves on its own and can find, replace or insert words across a note in one go.</p>
+    <div class="actions">
+      <a class="button primary" href="https://github.com/misutesu-desu/hien/releases/latest/download/hien.exe" data-i18n="download">Download for Windows</a>
+      <a class="button" href="https://github.com/misutesu-desu/hien" data-i18n="source">Source code</a>
+    </div>
+    <p class="small" data-i18n="note">Single .exe, no installer. Windows 10 or 11.</p>
+  </section>
+
+  <div class="window" aria-hidden="true">
+    <div class="win-body">
+      <div class="side">
+        <div class="fake-field" data-i18n="m_search">Search notes</div>
+        <div class="row on" data-i18n="m_n1">Shopping list</div>
+        <div class="row" data-i18n="m_n2">Ideas for the weekend</div>
+        <div class="row" data-i18n="m_n3">Book quotes</div>
+      </div>
+      <div class="edit">
+        <div class="find">
+          <span data-i18n="m_find">Find</span>
+          <span class="fake-field" data-i18n="m_word">cat</span>
+          <span class="small">1/2</span>
+          <span class="chip on" data-i18n="m_whole">Whole word</span>
+          <span data-i18n="m_with">Word</span>
+          <span class="fake-field" data-i18n="m_ins">tabby</span>
+          <span class="chip on" data-i18n="m_before">Before</span>
+          <span class="chip go" data-i18n="m_all">Insert everywhere</span>
+        </div>
+        <div class="text" data-i18n-html="m_text">Shopping list
+
+- food for the <mark class="cur">cat</mark>
+- new bed for the <mark>cat</mark>
+- coffee, milk, bread</div>
+      </div>
+    </div>
+    <div class="status"><span data-i18n="m_saved">Saved</span><span data-i18n="m_count">17 words · Ln 3, Col 19</span></div>
+  </div>
+
+  <h2 data-i18n="features">Features</h2>
+  <div class="grid">
+    <div class="card"><h3 data-i18n="f1h">Insert word</h3><p data-i18n="f1">Put a word before or after every match. With cat and tabby, each cat becomes tabby cat. Matches that already have the word are skipped.</p></div>
+    <div class="card"><h3 data-i18n="f2h">Find and replace</h3><p data-i18n="f2">One at a time or all at once, with match case and whole word options. Matches are highlighted as you type.</p></div>
+    <div class="card"><h3 data-i18n="f3h">Saves on its own</h3><p data-i18n="f3">Notes are plain .txt files in your AppData folder, written 400 ms after you stop typing.</p></div>
+    <div class="card"><h3 data-i18n="f4h">Undo and trash</h3><p data-i18n="f4">Bulk changes undo with one button. Deleted notes move to a trash folder and come back from the status bar.</p></div>
+    <div class="card"><h3 data-i18n="f5h">English and Turkish</h3><p data-i18n="f5">The interface follows your system language. Turkish I and İ match their lowercase forms in search.</p></div>
+    <div class="card"><h3 data-i18n="f6h">Dark and light</h3><p data-i18n="f6">Follows the system theme, or pick one in Settings.</p></div>
+  </div>
+
+  <h2 data-i18n="keys">Shortcuts</h2>
+  <table>
+    <tr><td><kbd>Ctrl+N</kbd></td><td data-i18n="k1">New note</td></tr>
+    <tr><td><kbd>Ctrl+F</kbd></td><td data-i18n="k2">Find</td></tr>
+    <tr><td><kbd>Ctrl+H</kbd></td><td data-i18n="k3">Replace</td></tr>
+    <tr><td><kbd>Ctrl+E</kbd></td><td data-i18n="k4">Insert word</td></tr>
+    <tr><td><kbd>F3</kbd> <kbd>Shift+F3</kbd></td><td data-i18n="k5">Next, previous match</td></tr>
+    <tr><td><kbd>Ctrl+K</kbd></td><td data-i18n="k6">Search notes</td></tr>
+    <tr><td><kbd>Alt+↑</kbd> <kbd>Alt+↓</kbd></td><td data-i18n="k7">Previous, next note</td></tr>
+    <tr><td><kbd>Esc</kbd></td><td data-i18n="k8">Close the panel</td></tr>
+  </table>
+</main>
+
+<footer>
+  <div class="bar"><a href="https://github.com/misutesu-desu/hien">github.com/misutesu-desu/hien</a></div>
+</footer>
+
+<script>
+const TR = {
+  theme_system: "Tema: sistem", theme_dark: "Tema: koyu", theme_light: "Tema: açık",
+  title: "Sana yetişen bir not defteri.",
+  lead: "Hien, Rust ile yazılmış küçük bir Windows not defteri. Hızlı açılır, kendiliğinden kaydeder, bir notun içinde kelimeleri tek seferde bulur, değiştirir ya da önüne ekler.",
+  download: "Windows için indir", source: "Kaynak kod",
+  note: "Tek .exe, kurulum yok. Windows 10 ya da 11.",
+  m_search: "Notlarda ara", m_n1: "Alışveriş listesi", m_n2: "Hafta sonu fikirleri", m_n3: "Kitap alıntıları",
+  m_find: "Ara", m_word: "kedi", m_whole: "Tam kelime", m_with: "Kelime", m_ins: "tekir",
+  m_before: "Önüne", m_all: "Tümüne ekle",
+  m_text: 'Alışveriş listesi\n\n- <mark class="cur">kedi</mark> maması\n- <mark>kedi</mark> yatağı\n- kahve, süt, ekmek',
+  m_saved: "Kaydedildi", m_count: "12 kelime · Satır 3, Sütun 7",
+  features: "Özellikler",
+  f1h: "Kelime ekle", f1: "Her eşleşmenin önüne ya da arkasına bir kelime yazar. kedi için tekir seçilirse her kedi, tekir kedi olur. Kelime zaten oradaysa atlanır.",
+  f2h: "Bul ve değiştir", f2: "Tek tek ya da hepsini birden. Büyük küçük harf ve tam kelime seçenekleri var, eşleşmeler yazarken işaretlenir.",
+  f3h: "Kendiliğinden kaydeder", f3: "Notlar AppData klasöründe düz .txt dosyaları. Yazmayı bıraktıktan 400 ms sonra kaydedilir.",
+  f4h: "Geri alma ve çöp", f4: "Toplu işlemler tek düğmeyle geri alınır. Silinen not çöp klasörüne gider, durum çubuğundan geri gelir.",
+  f5h: "İngilizce ve Türkçe", f5: "Arayüz sistem dilini izler. Aramada I ve İ küçük halleriyle eşleşir.",
+  f6h: "Koyu ve açık", f6: "Sistem temasını izler ya da Ayarlar'dan seçilir.",
+  keys: "Kısayollar",
+  k1: "Yeni not", k2: "Bul", k3: "Değiştir", k4: "Kelime ekle", k5: "Sonraki, önceki eşleşme",
+  k6: "Notlarda ara", k7: "Önceki, sonraki not", k8: "Paneli kapat"
+};
+const EN = {};
+document.querySelectorAll("[data-i18n]").forEach(e => EN[e.dataset.i18n] = e.textContent);
+document.querySelectorAll("[data-i18n-html]").forEach(e => EN[e.dataset.i18nHtml] = e.innerHTML);
+EN.theme_dark = "Theme: dark"; EN.theme_light = "Theme: light";
+
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch {} }
+};
+let lang = store.get("lang") || (navigator.language.toLowerCase().startsWith("tr") ? "tr" : "en");
+let theme = store.get("theme") || "system";
+
+function render() {
+  const t = lang === "tr" ? TR : EN;
+  document.documentElement.lang = lang;
+  document.querySelectorAll("[data-i18n]").forEach(e => { if (t[e.dataset.i18n]) e.textContent = t[e.dataset.i18n]; });
+  document.querySelectorAll("[data-i18n-html]").forEach(e => e.innerHTML = t[e.dataset.i18nHtml]);
+  const btn = document.getElementById("theme");
+  btn.textContent = t["theme_" + theme];
+  document.getElementById("lang").textContent = lang === "tr" ? "English" : "Türkçe";
+  if (theme === "system") document.documentElement.removeAttribute("data-theme");
+  else document.documentElement.dataset.theme = theme;
+}
+document.getElementById("lang").onclick = () => { lang = lang === "tr" ? "en" : "tr"; store.set("lang", lang); render(); };
+document.getElementById("theme").onclick = () => {
+  theme = { system: "dark", dark: "light", light: "system" }[theme];
+  store.set("theme", theme); render();
+};
+render();
+</script>
+</body>
+</html>
