@@ -31,7 +31,7 @@ impl Note {
     }
 }
 
-/// Every note is its own .txt file in the folder. Deleted notes move to `cop`.
+/// Every note is its own .txt file in the folder. Deleted notes move to `trash`.
 pub struct Store {
     dir: PathBuf,
 }
@@ -41,8 +41,16 @@ impl Store {
         let root = dirs::data_dir()
             .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "no data directory"))?
             .join("Hien");
-        let dir = root.join("notlar");
-        fs::create_dir_all(dir.join("cop"))?;
+        let dir = root.join("notes");
+        // Earlier builds used Turkish folder names. Move them once so existing notes stay.
+        let old = root.join("notlar");
+        if old.exists() && !dir.exists() {
+            fs::rename(&old, &dir)?;
+            if dir.join("cop").exists() {
+                fs::rename(dir.join("cop"), dir.join("trash"))?;
+            }
+        }
+        fs::create_dir_all(dir.join("trash"))?;
         Ok(Self { dir })
     }
 
@@ -55,7 +63,7 @@ impl Store {
     }
 
     fn trash_path(&self, id: u64) -> PathBuf {
-        self.dir.join("cop").join(format!("{id}.txt"))
+        self.dir.join("trash").join(format!("{id}.txt"))
     }
 
     /// Reads all notes, most recently modified first.
