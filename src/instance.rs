@@ -22,6 +22,11 @@ fn port_file() -> Option<PathBuf> {
 
 /// Passes `file` to a running Hien. Returns `true` when one took it.
 pub fn send(file: Option<&Path>) -> bool {
+    // Connecting to a closed loopback port takes about two seconds on Windows,
+    // so the leftover port file of a closed Hien is only tried when one is running.
+    if !already_running() {
+        return false;
+    }
     port_file()
         .and_then(|p| fs::read_to_string(p).ok())
         .and_then(|s| s.trim().parse::<u16>().ok())
@@ -87,6 +92,31 @@ fn read_request(stream: &TcpStream) -> Option<Option<PathBuf>> {
     }
     let path = lines.next()?.ok()?;
     Some((!path.is_empty()).then(|| PathBuf::from(path)))
+}
+
+/// The first Hien creates a named mutex and holds it until it exits, so a later
+/// launch sees it already exists. Windows drops it even if Hien crashes.
+#[cfg(windows)]
+fn already_running() -> bool {
+    use windows_sys::Win32::Foundation::{CloseHandle, ERROR_ALREADY_EXISTS, GetLastError};
+    use windows_sys::Win32::System::Threading::CreateMutexW;
+    let name: Vec<u16> = r"Local\Hien.instance".encode_utf16().chain([0]).collect();
+    unsafe {
+        let handle = CreateMutexW(std::ptr::null(), 0, name.as_ptr());
+        if handle.is_null() {
+            return false;
+        }
+        let exists = GetLastError() == ERROR_ALREADY_EXISTS;
+        if exists {
+            CloseHandle(handle);
+        }
+        exists
+    }
+}
+
+#[cfg(not(windows))]
+fn already_running() -> bool {
+    true
 }
 
 // Windows lets only the foreground process raise a window. The launch that came
