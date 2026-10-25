@@ -97,7 +97,7 @@ fn read_request(stream: &TcpStream) -> Option<Option<PathBuf>> {
 /// The first Hien creates a named mutex and holds it until it exits, so a later
 /// launch sees it already exists. Windows drops it even if Hien crashes.
 #[cfg(windows)]
-fn already_running() -> bool {
+pub fn already_running() -> bool {
     use windows_sys::Win32::Foundation::{CloseHandle, ERROR_ALREADY_EXISTS, GetLastError};
     use windows_sys::Win32::System::Threading::CreateMutexW;
     let name: Vec<u16> = r"Local\Hien.instance".encode_utf16().chain([0]).collect();
@@ -115,7 +115,7 @@ fn already_running() -> bool {
 }
 
 #[cfg(not(windows))]
-fn already_running() -> bool {
+pub fn already_running() -> bool {
     true
 }
 

@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod autostart;
 mod i18n;
 mod instance;
 mod store;
@@ -167,6 +168,7 @@ struct App {
     editor_area: egui::Rect,
     scroll_y: f32,
     quitting: bool,
+    autostart: bool,
 }
 
 impl App {
@@ -238,6 +240,7 @@ impl App {
             editor_area: egui::Rect::NOTHING,
             scroll_y: 0.0,
             quitting: false,
+            autostart: autostart::is_enabled(),
         };
         if let Some(path) = file {
             app.open_file(&path);
@@ -656,6 +659,17 @@ impl App {
                     }
                     ui.separator();
                     ui.checkbox(&mut self.settings.background, t.background);
+                    if ui.checkbox(&mut self.autostart, t.autostart).changed() {
+                        let result = if self.autostart {
+                            autostart::enable()
+                        } else {
+                            autostart::disable()
+                        };
+                        if let Err(e) = result {
+                            self.autostart = !self.autostart;
+                            self.message = Message::error((t.err_autostart)(&e.to_string()));
+                        }
+                    }
                     if ui
                         .add(egui::Button::new(t.quit).shortcut_text("Ctrl+Q"))
                         .clicked()
@@ -1238,18 +1252,35 @@ fn row(ui: &mut egui::Ui, p: &Pal, title: &str, selected: bool) -> egui::Respons
 }
 
 fn main() -> eframe::Result {
+    let mut background = false;
+    let mut file = None;
+    for arg in std::env::args_os().skip(1) {
+        if arg == autostart::BACKGROUND_FLAG {
+            background = true;
+        } else {
+            file = Some(PathBuf::from(arg));
+        }
+    }
+    // A sign-in launch stays quiet when Hien is already up. Any other launch
+    // hands its file to the running window.
+    let running = if background {
+        instance::already_running()
+    } else {
+        instance::send(file.as_deref())
+    };
+    if running {
+        return Ok(());
+    }
+
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_title("Hien")
             .with_app_id("Hien")
             .with_inner_size([1040.0, 700.0])
-            .with_min_inner_size([620.0, 380.0]),
+            .with_min_inner_size([620.0, 380.0])
+            .with_visible(!background),
         ..Default::default()
     };
-    let file = std::env::args_os().nth(1).map(PathBuf::from);
-    if instance::send(file.as_deref()) {
-        return Ok(());
-    }
     eframe::run_native(
         "Hien",
         options,

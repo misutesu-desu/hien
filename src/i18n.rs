@@ -27,6 +27,7 @@ pub struct Strings {
     pub theme: &'static str,
     pub background: &'static str,
     pub quit: &'static str,
+    pub autostart: &'static str,
     pub theme_system: &'static str,
     pub theme_dark: &'static str,
     pub theme_light: &'static str,
@@ -87,6 +88,7 @@ pub struct Strings {
     pub err_restore: fn(&str) -> String,
     pub err_open_folder: fn(&str) -> String,
     pub err_open_file: fn(&str) -> String,
+    pub err_autostart: fn(&str) -> String,
 }
 
 fn plural(n: usize, one: &str, many: &str) -> String {
@@ -99,6 +101,7 @@ pub const EN: Strings = Strings {
     theme: "Theme",
     background: "Keep running when closed",
     quit: "Quit Hien",
+    autostart: "Start with Windows",
     theme_system: "System",
     theme_dark: "Dark",
     theme_light: "Light",
@@ -164,6 +167,7 @@ pub const EN: Strings = Strings {
     err_restore: |e| format!("Could not restore: {e}"),
     err_open_folder: |e| format!("Could not open the folder: {e}"),
     err_open_file: |e| format!("Could not open {e}"),
+    err_autostart: |e| format!("Could not change the startup setting: {e}"),
 };
 
 pub const TR: Strings = Strings {
@@ -172,6 +176,7 @@ pub const TR: Strings = Strings {
     theme: "Tema",
     background: "Kapatınca arka planda çalışsın",
     quit: "Hien'den çık",
+    autostart: "Windows ile başlat",
     theme_system: "Sistem",
     theme_dark: "Koyu",
     theme_light: "Açık",
@@ -232,4 +237,5 @@ pub const TR: Strings = Strings {
     err_restore: |e| format!("Geri getirilemedi: {e}"),
     err_open_folder: |e| format!("Klasör açılamadı: {e}"),
     err_open_file: |e| format!("Açılamadı, {e}"),
+    err_autostart: |e| format!("Başlangıç ayarı değiştirilemedi: {e}"),
 };
