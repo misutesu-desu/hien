@@ -13,6 +13,8 @@ Rust ve egui ile yazılmış, hızlı bir Windows not defteri. Notlar `%APPDATA%
 - Silinen not `trash` klasörüne taşınır, durum çubuğundan geri getirilebilir.
 - İngilizce ve Türkçe arayüz. Sistem diline göre seçilir, Ayarlar menüsünden değişir.
 - `.txt` dosyalarını açar. Hien `.txt` için varsayılan uygulama yapılırsa çift tıklanan dosya Hien'de açılır. Dosya satır sonları korunarak yerine kaydedilir, Dosyayı kapat ona dokunmadan listeden çıkarır. Dosyalar UTF-8 olmalı. Hien zaten açıksa dosya o pencerede açılır.
+- Pencere kapatılınca Hien arka planda çalışmaya devam eder, sonraki dosya hemen açılır. Ayarlar menüsünde Hien'den çık (Ctrl+Q), bunu kapatma seçeneği ve oturum açılınca Hien'i gizli başlatan Windows ile başlat var.
+- Koyu, açık ve sistem teması.
 
 ## Kısayollar
 
@@ -27,6 +29,7 @@ Rust ve egui ile yazılmış, hızlı bir Windows not defteri. Notlar `%APPDATA%
 | Ctrl+K | Notlarda ara |
 | Alt+Yukarı, Alt+Aşağı | Önceki, sonraki not |
 | Ctrl+S | Hemen kaydet |
+| Ctrl+Q | Hien'den çık |
 | Orta tık | Fareyi oynatarak kaydırır, tekrar tıklayınca durur. Tekerlek basılı tutulursa yalnız basılıyken kaydırır. |
 
 Bul paneli açılırken editörde seçili metin varsa arama kutusuna gelir.
