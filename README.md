@@ -13,6 +13,7 @@ A fast notepad for Windows, written in Rust with egui. Notes are plain `.txt` fi
 - Deleted notes go to a `trash` folder and can be restored from the status bar.
 - English and Turkish interface, picked from the system language and changeable in Settings.
 - Dark, light and system theme.
+- Closing the window keeps Hien running in the background, so the next file opens at once. Settings has Quit Hien (Ctrl+Q), an option to turn this off, and Start with Windows, which starts Hien hidden when you sign in.
 - Opens `.txt` files. Set Hien as the default app for `.txt` and double-clicking a file opens it in Hien. The file is saved back in place with its line endings, and Close file takes it off the list without touching it. Files must be UTF-8. If Hien is already open, the file opens in that window.
 
 ## Shortcuts
@@ -28,6 +29,7 @@ A fast notepad for Windows, written in Rust with egui. Notes are plain `.txt` fi
 | Ctrl+K | Search notes |
 | Alt+Up, Alt+Down | Previous, next note |
 | Ctrl+S | Save now |
+| Ctrl+Q | Quit Hien |
 | Esc | Close the panel |
 | Middle click | Scroll by moving the mouse, click again to stop. Hold the wheel down to scroll only while held. |
 
