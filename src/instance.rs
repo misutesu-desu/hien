@@ -58,22 +58,26 @@ fn send_to(port: u16, file: Option<&Path>) -> bool {
 
 /// Starts answering later launches. Returns `None` if the socket could not be opened,
 /// in which case every launch simply gets its own window.
-pub fn listen(ctx: egui::Context) -> Option<Inbox> {
+/// `window` is the native handle of Hien's window, used to show it straight away.
+pub fn listen(ctx: egui::Context, window: Option<isize>) -> Option<Inbox> {
     let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).ok()?;
     let port = listener.local_addr().ok()?.port();
     let path = port_file()?;
     fs::create_dir_all(path.parent()?).ok()?;
     fs::write(path, port.to_string()).ok()?;
-    Some(serve(listener, ctx))
+    Some(serve(listener, ctx, window))
 }
 
-fn serve(listener: TcpListener, ctx: egui::Context) -> Inbox {
+fn serve(listener: TcpListener, ctx: egui::Context, window: Option<isize>) -> Inbox {
     let inbox = Inbox::default();
     let sink = Arc::clone(&inbox);
     std::thread::spawn(move || {
         for stream in listener.incoming().flatten() {
             if let Some(request) = read_request(&stream) {
                 sink.lock().unwrap().push(request);
+                if let Some(hwnd) = window {
+                    raise(hwnd);
+                }
                 ctx.request_repaint();
                 let _ = (&stream).write_all(b"ok");
             }
@@ -132,6 +136,45 @@ fn allow_focus_steal() {
 #[cfg(not(windows))]
 fn allow_focus_steal() {}
 
+// eframe repaints a hidden window at most every 100 ms, so asking it to show the
+// window through egui leaves the user waiting. Showing it here makes Windows send
+// a paint right away, and that paint opens the file.
+#[cfg(windows)]
+fn raise(hwnd: isize) {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        IsIconic, SW_RESTORE, SW_SHOW, SetForegroundWindow, ShowWindowAsync,
+    };
+    let hwnd = hwnd as windows_sys::Win32::Foundation::HWND;
+    unsafe {
+        ShowWindowAsync(
+            hwnd,
+            if IsIconic(hwnd) != 0 {
+                SW_RESTORE
+            } else {
+                SW_SHOW
+            },
+        );
+        SetForegroundWindow(hwnd);
+    }
+}
+
+#[cfg(not(windows))]
+fn raise(_hwnd: isize) {}
+
+#[cfg(windows)]
+pub fn window_of(cc: &eframe::CreationContext<'_>) -> Option<isize> {
+    use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+    match cc.window_handle().ok()?.as_raw() {
+        RawWindowHandle::Win32(h) => Some(h.hwnd.get()),
+        _ => None,
+    }
+}
+
+#[cfg(not(windows))]
+pub fn window_of(_cc: &eframe::CreationContext<'_>) -> Option<isize> {
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -140,7 +183,7 @@ mod tests {
     fn running_window_receives_the_file() {
         let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
         let port = listener.local_addr().unwrap().port();
-        let inbox = serve(listener, egui::Context::default());
+        let inbox = serve(listener, egui::Context::default(), None);
         let file = std::env::temp_dir().join("not defteri ğ.txt");
 
         assert!(send_to(port, Some(&file)));

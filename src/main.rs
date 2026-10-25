@@ -1290,7 +1290,7 @@ fn main() -> eframe::Result {
                 cc.storage,
                 Store::open(),
                 file,
-                instance::listen(cc.egui_ctx.clone()),
+                instance::listen(cc.egui_ctx.clone(), instance::window_of(cc)),
             )))
         }),
     )
