@@ -62,6 +62,7 @@ struct Settings {
     options: MatchOptions,
     side: Side,
     space: bool,
+    background: bool,
 }
 
 impl Default for Settings {
@@ -73,6 +74,7 @@ impl Default for Settings {
             options: MatchOptions::default(),
             side: Side::Before,
             space: true,
+            background: true,
         }
     }
 }
@@ -164,6 +166,7 @@ struct App {
     autoscroll: Option<Autoscroll>,
     editor_area: egui::Rect,
     scroll_y: f32,
+    quitting: bool,
 }
 
 impl App {
@@ -234,6 +237,7 @@ impl App {
             autoscroll: None,
             editor_area: egui::Rect::NOTHING,
             scroll_y: 0.0,
+            quitting: false,
         };
         if let Some(path) = file {
             app.open_file(&path);
@@ -534,6 +538,11 @@ impl App {
         self.panel.focus = true;
     }
 
+    fn quit(&mut self, ctx: &egui::Context) {
+        self.quitting = true;
+        ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+    }
+
     fn shortcuts(&mut self, ctx: &egui::Context) {
         let key = |m, k| KeyboardShortcut::new(m, k);
         let ctrl = Modifiers::COMMAND;
@@ -541,6 +550,9 @@ impl App {
 
         if pressed(key(ctrl, Key::N)) {
             self.new_note();
+        }
+        if pressed(key(ctrl, Key::Q)) {
+            self.quit(ctx);
         }
         if pressed(key(ctrl, Key::S)) {
             self.save_notes();
@@ -641,6 +653,14 @@ impl App {
                         {
                             ui.ctx().set_theme(choice.preference());
                         }
+                    }
+                    ui.separator();
+                    ui.checkbox(&mut self.settings.background, t.background);
+                    if ui
+                        .add(egui::Button::new(t.quit).shortcut_text("Ctrl+Q"))
+                        .clicked()
+                    {
+                        self.quit(ui.ctx());
                     }
                 });
                 if let Some(s) = &self.store
@@ -1048,11 +1068,21 @@ impl App {
                 for path in requests.into_iter().flatten() {
                     self.open_file(&path);
                 }
+                ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
                 ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
                 ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
             }
         }
         self.shortcuts(ctx);
+        // Closing only hides the window, so the next file opens without starting Hien again.
+        if ctx.input(|i| i.viewport().close_requested())
+            && self.settings.background
+            && !self.quitting
+        {
+            self.save_notes();
+            ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+            ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+        }
         if self.notes.iter().any(|n| n.dirty) {
             let elapsed = self.last_edit.elapsed();
             if elapsed >= SAVE_DELAY {
@@ -1239,8 +1269,21 @@ fn main() -> eframe::Result {
 mod tests {
     use super::*;
 
-    fn frame(ctx: &egui::Context, app: &mut App, events: Vec<egui::Event>) {
-        let input = egui::RawInput {
+    fn frame(
+        ctx: &egui::Context,
+        app: &mut App,
+        events: Vec<egui::Event>,
+    ) -> Vec<egui::ViewportCommand> {
+        frame_with(ctx, app, events, false)
+    }
+
+    fn frame_with(
+        ctx: &egui::Context,
+        app: &mut App,
+        events: Vec<egui::Event>,
+        close: bool,
+    ) -> Vec<egui::ViewportCommand> {
+        let mut input = egui::RawInput {
             screen_rect: Some(egui::Rect::from_min_size(
                 egui::Pos2::ZERO,
                 vec2(1000.0, 700.0),
@@ -1248,11 +1291,18 @@ mod tests {
             events,
             ..Default::default()
         };
+        if close {
+            let root = input.viewports.entry(egui::ViewportId::ROOT).or_default();
+            root.events.push(egui::ViewportEvent::Close);
+        }
         let mut out = ctx.run_ui(input, |ui| {
             app.tick(ui.ctx());
             app.draw(ui);
         });
         out.textures_delta.clear();
+        out.viewport_output
+            .remove(&egui::ViewportId::ROOT)
+            .map_or(Vec::new(), |v| v.commands)
     }
 
     fn app_with_long_note(name: &str) -> (egui::Context, App, Id) {
@@ -1304,6 +1354,26 @@ mod tests {
             "{before} -> {}",
             editor_top(&ctx, id)
         );
+    }
+
+    #[test]
+    fn closing_hides_and_a_new_launch_shows_the_window() {
+        let (ctx, mut app, _) = app_with_long_note("background");
+        let inbox = instance::Inbox::default();
+        app.inbox = Some(inbox.clone());
+        frame(&ctx, &mut app, vec![]);
+
+        let commands = frame_with(&ctx, &mut app, vec![], true);
+        assert!(commands.contains(&egui::ViewportCommand::CancelClose));
+        assert!(commands.contains(&egui::ViewportCommand::Visible(false)));
+
+        inbox.lock().unwrap().push(None);
+        let commands = frame(&ctx, &mut app, vec![]);
+        assert!(commands.contains(&egui::ViewportCommand::Visible(true)));
+
+        app.quit(&ctx);
+        let commands = frame_with(&ctx, &mut app, vec![], true);
+        assert!(!commands.contains(&egui::ViewportCommand::CancelClose));
     }
 
     fn middle(pos: egui::Pos2, pressed: bool) -> egui::Event {
